@@ -1,0 +1,49 @@
+# Garena Tour — iOS build on Codemagic (cloud Mac). Powered by NeXdEvE.
+# 1) Push user_app to a private GitHub repo  2) codemagic.io → Add app → pick the repo
+# 3) Teams → Integrations → App Store Connect: add an API key (needs Apple Developer account $99/yr)
+# 4) Code signing: bundle id  com.nexdeve.garenatour  (create it in Apple Developer → Identifiers)
+# 5) Start "ios-release" — the .ipa goes to TestFlight automatically.
+workflows:
+  ios-release:
+    name: Garena Tour iOS
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: GarenaTour ASC Key      # name of the key you add in Codemagic
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.nexdeve.garenatour
+    scripts:
+      - name: Get packages
+        script: flutter pub get
+      - name: Pods
+        script: cd ios && pod install --repo-update
+      - name: Build IPA
+        script: |
+          flutter build ipa --release \
+            --obfuscate --split-debug-info=build/debug-info \
+            --dart-define=API_BASE=https://garenatour.com/api/user \
+            --build-number=$(($(date +%s)/60))
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+
+  android-release:
+    name: Garena Tour Android (backup CI)
+    instance_type: linux_x2
+    environment:
+      flutter: stable
+      android_signing:
+        - garenatour_keystore          # upload garenatour-release.jks in Codemagic → Code signing
+    scripts:
+      - flutter pub get
+      - flutter build apk --release --obfuscate --split-debug-info=build/debug-info --dart-define=API_BASE=https://garenatour.com/api/user
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk

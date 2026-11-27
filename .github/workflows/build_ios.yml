@@ -1,0 +1,60 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build iOS IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS (Unsigned)
+        run: |
+          flutter build ios --release --no-codesign --dart-define=API_BASE=https://garenatour.com/api/user
+
+      - name: Package Payload to IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r -9 garenatour.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: garenatour-ios-ipa
+          path: garenatour.ipa
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-v1.0.0-b${{ github.run_number }}
+          name: Garena Tour iOS v1.0.0 (Build ${{ github.run_number }})
+          body: |
+            ## Garena Tour iOS IPA Build
+            - Built automatically by GitHub Actions on macOS runner
+            - Target: iOS 13.0+
+            - Install via AltStore, Scarlet, TrollStore, or Sideloadly
+          files: garenatour.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
